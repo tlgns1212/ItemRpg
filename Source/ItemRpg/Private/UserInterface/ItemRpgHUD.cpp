@@ -46,7 +46,7 @@ void AItemRpgHUD::HideMenu()
 	}
 }
 
-void AItemRpgHUD::ShowInteractionWidget()
+void AItemRpgHUD::ShowInteractionWidget() const
 {
 	if(InteractionWidget)
 	{
@@ -54,7 +54,7 @@ void AItemRpgHUD::ShowInteractionWidget()
 	}
 }
 
-void AItemRpgHUD::HideInteractionWidget()
+void AItemRpgHUD::HideInteractionWidget() const
 {
 	if(InteractionWidget)
 	{
@@ -62,7 +62,7 @@ void AItemRpgHUD::HideInteractionWidget()
 	}
 }
 
-void AItemRpgHUD::UpdateInteractionWidget(const FInteractableData* InteractableData)
+void AItemRpgHUD::UpdateInteractionWidget(const FInteractableData* InteractableData) const
 {
 	if(InteractionWidget)
 	{
@@ -71,7 +71,7 @@ void AItemRpgHUD::UpdateInteractionWidget(const FInteractableData* InteractableD
 			InteractionWidget->SetVisibility(ESlateVisibility::Visible);
 		}
 
-		// InteractionWidget->UpdateWidget(InteractableData);
+		InteractionWidget->UpdateWidget(InteractableData);
 	}
 }
 

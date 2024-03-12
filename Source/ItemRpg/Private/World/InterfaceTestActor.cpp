@@ -43,7 +43,7 @@ void AInterfaceTestActor::EndFocus()
 {
 	if(Mesh)
 	{
-		Mesh->SetRenderCustomDepth((false));
+		Mesh->SetRenderCustomDepth(false);
 	}
 }
 

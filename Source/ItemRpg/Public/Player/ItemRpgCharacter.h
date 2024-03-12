@@ -8,6 +8,8 @@
 #include "Interfaces/InteractionInterface.h"
 #include "ItemRpgCharacter.generated.h"
 
+class UInventoryComponent;
+class AItemRpgHUD;
 class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
@@ -55,12 +57,16 @@ public:
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
 	FORCEINLINE bool IsInteracting() const { return GetWorldTimerManager().IsTimerActive(TimerHandle_Interaction); };
-	
+
+	FORCEINLINE UInventoryComponent* GetInventory() const { return PlayerInventory; };
 
 protected:
 	//===============================================================================
 	// PROPERTIES & VARIABLES
 	//===============================================================================
+	UPROPERTY()
+	AItemRpgHUD* HUD;
+	
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
@@ -92,6 +98,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Character | Interaction")
 	TScriptInterface<IInteractionInterface> TargetInteractable;
 
+	UPROPERTY(VisibleAnywhere, Category = "Character | Inventory")
+	UInventoryComponent* PlayerInventory;
+	
 	float InteractionCheckFrequency;
 
 	float InteractionCheckDistance;

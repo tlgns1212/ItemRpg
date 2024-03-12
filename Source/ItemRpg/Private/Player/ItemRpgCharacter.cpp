@@ -2,6 +2,8 @@
 
 // Game
 #include "Player/ItemRpgCharacter.h"
+#include "UserInterface/ItemRpgHUD.h"
+#include "Components/InventoryComponent.h"
 
 // Engine
 #include "Engine/LocalPlayer.h"
@@ -15,6 +17,7 @@
 #include "InputActionValue.h"
 
 #include "DrawDebugHelpers.h"
+
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -55,6 +58,10 @@ AItemRpgCharacter::AItemRpgCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+	PlayerInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("PlayerInventory"));
+	PlayerInventory->SetSlotsCapacity(20);
+	PlayerInventory->SetWeightCapacity(50.0f);
+	
 	InteractionCheckFrequency = 0.1f;
 	InteractionCheckDistance = 225.0f;
 
@@ -74,6 +81,8 @@ void AItemRpgCharacter::BeginPlay()
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
+
+	HUD = Cast<AItemRpgHUD>(GetWorld()->GetFirstPlayerController()->GetHUD());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -169,6 +178,8 @@ void AItemRpgCharacter::FoundInteractable(AActor* NewInteractable)
 	InteractionData.CurrentInteractable = NewInteractable;
 	TargetInteractable = NewInteractable;
 
+	HUD->UpdateInteractionWidget(&TargetInteractable->InteractableData);
+
 	TargetInteractable->BeginFocus();
 }
 
@@ -186,7 +197,7 @@ void AItemRpgCharacter::NoInteractableFound()
 			TargetInteractable->EndFocus();
 		}
 
-		// Hide Interaction Widget on the HUD
+		HUD->HideInteractionWidget();
 
 		InteractionData.CurrentInteractable = nullptr;
 		TargetInteractable = nullptr;

@@ -6,6 +6,7 @@
 #include "Data/ItemDataStructs.h"
 #include "ItemBase.generated.h"
 
+class UInventoryComponent;
 /**
  * 
  */
@@ -18,8 +19,8 @@ public:
 	//===============================================================================
 	// PROPERTIES & VARIABLES
 	//===============================================================================
-	// UPROPERTY()
-	// UInventoryComponent* OwningInventory;
+	UPROPERTY()
+	UInventoryComponent* OwningInventory;
 	
 	UPROPERTY(VisibleAnywhere, Category = "Item")
 	int32 Quantity;
@@ -45,10 +46,14 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Item")
 	FItemAssetData AssetData;
 
+	bool bIsCopy;
+	bool bIsPickup;
 	//===============================================================================
 	// FUNCTIONS
 	//===============================================================================
 	UItemBase();
+
+	void ResetItemFlags();
 
 	UFUNCTION(Category = "Item")
 	UItemBase* CreateItemCopy() const;

@@ -312,7 +312,7 @@ void AItemRpgCharacter::StartAiming()
 	if(!HUD->bIsMenuVisible)
 	{
 		bAiming = true;
-		// bUseControllerRotationYaw = true;
+		bUseControllerRotationYaw = true;
 		GetCharacterMovement()->MaxWalkSpeed = 200.0f;
 
 		if(AimingCameraTimeline)
@@ -325,7 +325,7 @@ void AItemRpgCharacter::StopAiming()
 	if(bAiming)
 	{
 		bAiming = false;
-		// bUseControllerRotationYaw = false;
+		bUseControllerRotationYaw = false;
 		HUD->HideCrosshair();
 		GetCharacterMovement()->MaxWalkSpeed = 500.0f;
 		

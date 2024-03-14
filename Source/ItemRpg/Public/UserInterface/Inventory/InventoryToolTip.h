@@ -4,43 +4,54 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "InventoryPanel.generated.h"
+#include "InventoryToolTip.generated.h"
 
 class UTextBlock;
-class UWrapBox;
 class UInventoryItemSlot;
-class UInventoryComponent;
-class AItemRpgCharacter;
-
+/**
+ * 
+ */
 UCLASS()
-class ITEMRPG_API UInventoryPanel : public UUserWidget
+class ITEMRPG_API UInventoryToolTip : public UUserWidget
 {
 	GENERATED_BODY()
-
 public:
 	//===============================================================================
 	// PROPERTIES & VARIABLES
 	//===============================================================================
+	UPROPERTY(VisibleAnywhere)
+	UInventoryItemSlot* InventorySlotBeingHovered;
+
 	UPROPERTY(meta=(BindWidget))
-	UWrapBox* InventoryWrapBox;
+	UTextBlock* ItemName;
+
 	UPROPERTY(meta=(BindWidget))
-	UTextBlock* WeightInfo;
+	UTextBlock* ItemType;
+
 	UPROPERTY(meta=(BindWidget))
-	UTextBlock* CapacityInfo;
+	UTextBlock* DamageValue;
 	
-	UPROPERTY()
-	AItemRpgCharacter* PlayerCharacter;
-	UPROPERTY()
-	UInventoryComponent* InventoryReference;
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<UInventoryItemSlot> InventorySlotClass;
+	UPROPERTY(meta=(BindWidget))
+	UTextBlock* ArmorRating;
+
+	UPROPERTY(meta=(BindWidget))
+	UTextBlock* UsageText;
+
+	UPROPERTY(meta=(BindWidget))
+	UTextBlock* ItemDescription;
+
+	UPROPERTY(meta=(BindWidget))
+	UTextBlock* MaxStackSize;
+
+	UPROPERTY(meta=(BindWidget))
+	UTextBlock* SellValue;
+
+	UPROPERTY(meta=(BindWidget))
+	UTextBlock* StackWeight;
 	
 	//===============================================================================
 	// FUNCTIONS
 	//===============================================================================
-	UFUNCTION()
-	void RefreshInventory();
-
 protected:
 	//===============================================================================
 	// PROPERTIES & VARIABLES
@@ -49,9 +60,5 @@ protected:
 	//===============================================================================
 	// FUNCTIONS
 	//===============================================================================
-	virtual void NativeOnInitialized() override;
-	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent,
-		UDragDropOperation* InOperation) override;
-	
-	void SetInfoText() const;
+	virtual void NativeConstruct() override;
 };

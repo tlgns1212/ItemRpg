@@ -8,6 +8,8 @@
 #include "Interfaces/InteractionInterface.h"
 #include "ItemRpgCharacter.generated.h"
 
+class UTimelineComponent;
+class UItemBase;
 class UInventoryComponent;
 class AItemRpgHUD;
 class USpringArmComponent;
@@ -43,8 +45,7 @@ public:
 	//===============================================================================
 	// PROPERTIES & VARIABLES
 	//===============================================================================
-
-
+	bool bAiming;
 	
 	//===============================================================================
 	// FUNCTIONS
@@ -59,6 +60,10 @@ public:
 	FORCEINLINE bool IsInteracting() const { return GetWorldTimerManager().IsTimerActive(TimerHandle_Interaction); };
 
 	FORCEINLINE UInventoryComponent* GetInventory() const { return PlayerInventory; };
+
+	void UpdateInteractionWidget() const;
+
+	void DropItem(UItemBase* ItemToDrop, const int32 QuantityToDrop);
 
 protected:
 	//===============================================================================
@@ -95,6 +100,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* InteractAction;
 
+	/** Inventory Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* InventoryAction;
+
+	/** Aim Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* AimAction;
+
 	UPROPERTY(VisibleAnywhere, Category = "Character | Interaction")
 	TScriptInterface<IInteractionInterface> TargetInteractable;
 
@@ -102,31 +115,46 @@ protected:
 	UInventoryComponent* PlayerInventory;
 	
 	float InteractionCheckFrequency;
-
 	float InteractionCheckDistance;
-
 	FTimerHandle TimerHandle_Interaction;
-
 	FInteractionData InteractionData;
 
+	// timeline properties for camera aiming transition
+	UPROPERTY(VisibleAnywhere, Category="Character | Camera")
+	FVector DefaultCameraLocation;
+	UPROPERTY(VisibleAnywhere, Category="Character | Camera")
+	FVector AimingCameraLocation;
+
+	TObjectPtr<UTimelineComponent> AimingCameraTimeline;
+
+	UPROPERTY(EditDefaultsOnly, Category="Character | Aim Timeline")
+	UCurveFloat* AimingCameraCurve;
+	
 	//===============================================================================
 	// FUNCTIONS
 	//===============================================================================
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
+
+	void ToggleMenu();
+
+	void StartAiming();
+	void StopAiming();
+	UFUNCTION()
+	void UpdateCameraTimeline(float TimelineValue) const;
+	UFUNCTION()
+	void CameraTimelineEnd();
+	
 	void PerformInteractionCheck();
 	void FoundInteractable(AActor* NewInteractable);
 	void NoInteractableFound();
 	void BeginInteract();
 	void EndInteract();
 	void Interact();
-
-	virtual void BeginPlay();
-	virtual void Tick(float DeltaSeconds) override;
 	
 	void Move(const FInputActionValue& Value);
-
 	void Look(const FInputActionValue& Value);
-	
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
 };
 

@@ -104,7 +104,7 @@ void UInventoryComponent::SplitExistingStack(UItemBase* ItemIn, const int32 Amou
 	}
 }
 
-FItemAddResult UInventoryComponent::HandleNonStackableItems(UItemBase* ItemIn, int32 RequestedAddAmount)
+FItemAddResult UInventoryComponent::HandleNonStackableItems(UItemBase* ItemIn)
 {
 	// check if in the input item has valid weight
 	if(FMath::IsNearlyZero(ItemIn->GetItemStackWeight()) || ItemIn->GetItemStackWeight() < 0)
@@ -127,13 +127,99 @@ FItemAddResult UInventoryComponent::HandleNonStackableItems(UItemBase* ItemIn, i
 			FText::FromString("Could not add {0} to the inventory. Inventory slots are full"), ItemIn->TextData.Name));
 	}
 
-	AddNewItem(ItemIn, RequestedAddAmount);
-	return FItemAddResult::AddedAll(RequestedAddAmount, FText::Format(
-			FText::FromString("Successfully added {1} {0} to the inventory."), ItemIn->TextData.Name, RequestedAddAmount));
+	AddNewItem(ItemIn, 1);
+	return FItemAddResult::AddedAll(1, FText::Format(
+			FText::FromString("Successfully added {1} {0} to the inventory."), ItemIn->TextData.Name, 1));
 }
 
 int32 UInventoryComponent::HandleStackableItems(UItemBase* ItemIn, int32 RequestedAddAmount)
 {
+	if(RequestedAddAmount <= 0 || FMath::IsNearlyZero(ItemIn->GetItemStackWeight()))
+	{
+		return 0;
+	}
+	int32 AmountToDistribute = RequestedAddAmount;
+
+	// 인벤토리에 이미 아이템이 있는지 확인, 덜찬걸로
+	UItemBase* ExistingItemStack = FindNextPartialStack(ItemIn);
+
+	while(ExistingItemStack)
+	{
+		// 아이템이 꽉찰려면 몇개 더 필요한지
+		const int32 AmountToMakeFullStack = CalculateNumberForFullStack(ExistingItemStack, AmountToDistribute);
+		// 인벤토리 무게 기준 몇개를 더 넣을 수 있는지
+		const int32 WeightLimitAddAmount = CalculateWeightAddAmount(ExistingItemStack, AmountToMakeFullStack);
+
+		// 인벤토리의 무게를 초과하지 않으면 더 추가 가능
+		if(WeightLimitAddAmount > 0)
+		{
+			// 인벤토리 총 무게랑 ExistingItem 개수 조정
+			ExistingItemStack->SetQuantity(ExistingItemStack->Quantity + WeightLimitAddAmount);
+			InventoryTotalWeight += (ExistingItemStack->GetItemSingleWeight() * WeightLimitAddAmount);
+
+			// 변경 가능한 숫자 조정
+			AmountToDistribute -= WeightLimitAddAmount;
+
+			ItemIn->SetQuantity(AmountToDistribute);
+
+			// 현재 무게에 하나 더 추가했을 때 총 무게를 넘기면 멈추기
+			if(InventoryTotalWeight + ExistingItemStack->GetItemSingleWeight() > InventoryWeightCapacity)
+			{
+				OnInventoryUpdated.Broadcast();
+				return RequestedAddAmount - AmountToDistribute;
+			}
+		}
+		else if(WeightLimitAddAmount <= 0)
+		{
+			if(AmountToDistribute != RequestedAddAmount)
+			{
+				// 반복문 돌리다가 무게가 꽉 차면
+				OnInventoryUpdated.Broadcast();
+				return RequestedAddAmount - AmountToDistribute;
+			}
+
+			return 0;
+		}
+
+		if(AmountToDistribute <= 0)
+		{
+			// 모든 아이템이 이미 존재하는 아이템들에 골고루 분배되는 경우
+			OnInventoryUpdated.Broadcast();
+			return RequestedAddAmount;
+		}
+
+		// 다른 PartialStack이 있는지 확인 후 반복문 나갈지 계속 돌릴지 확인
+		ExistingItemStack = FindNextPartialStack(ItemIn);
+	}
+
+	// partial stack 더이상 찾을 수 없음, 새로운 Stack 생성
+	if(InventoryContents.Num() + 1 <=InventorySlotsCapacity)
+	{
+		// 무게를 기준으로 추가할 수 있는 정도
+		const int32 WeightLimitAddAmount = CalculateWeightAddAmount(ItemIn, AmountToDistribute);
+
+		if(WeightLimitAddAmount > 0)
+		{
+			// 무게 때문에 다 넣지 못할 경우
+			if(WeightLimitAddAmount < AmountToDistribute)
+			{
+				AmountToDistribute -= WeightLimitAddAmount;
+				ItemIn->SetQuantity(AmountToDistribute);
+
+				// 부분적으로만 인벤토리에 추가되었으므로 Copy를 생성
+				AddNewItem(ItemIn->CreateItemCopy(), WeightLimitAddAmount);
+				return RequestedAddAmount - AmountToDistribute;
+			}
+
+			// 다 넣었을 경우 인벤토리에 추가
+			AddNewItem(ItemIn, AmountToDistribute);
+			return RequestedAddAmount;
+		}
+		
+		return RequestedAddAmount - AmountToDistribute;
+	}
+
+	return 0;
 }
 
 FItemAddResult UInventoryComponent::HandleAddItem(UItemBase* InputItem)
@@ -145,7 +231,7 @@ FItemAddResult UInventoryComponent::HandleAddItem(UItemBase* InputItem)
 		// handle non-stackable items
 		if(!InputItem->NumericData.bIsStackable)
 		{
-			return HandleNonStackableItems(InputItem, InitialRequestedAddAmount);
+			return HandleNonStackableItems(InputItem);
 		}
 
 		// handle stackable items
@@ -153,19 +239,30 @@ FItemAddResult UInventoryComponent::HandleAddItem(UItemBase* InputItem)
 
 		if(StackableAmountAdded == InitialRequestedAddAmount)
 		{
-			// return added all result
+			return FItemAddResult::AddedAll(InitialRequestedAddAmount, FText::Format(
+				FText::FromString("Successfully added {0} {1} to the inventory."),
+				InitialRequestedAddAmount,
+				InputItem->TextData.Name));
 		}
 
 		if(StackableAmountAdded < InitialRequestedAddAmount && StackableAmountAdded > 0)
 		{
-			// return added partial result
+			return FItemAddResult::AddedPartial(StackableAmountAdded, FText::Format(
+				FText::FromString("Partial amount of {0} added to the inventory. Number added = {1}"),
+				InputItem->TextData.Name,
+				StackableAmountAdded));
 		}
 
 		if(StackableAmountAdded <= 0)
 		{
-			// return added none result
+			return FItemAddResult::AddedNone(FText::Format(
+				FText::FromString("Couldn't add {0} to the inventory. No remaining inventory slots, or invalid item."),
+				InputItem->TextData.Name));
 		}
 	}
+
+	check(false);
+	return FItemAddResult::AddedNone(FText::FromString("TryAddItem fallthrough error. Get Owner() check somehow failed"));
 }
 
 

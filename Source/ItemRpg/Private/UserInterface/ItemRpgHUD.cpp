@@ -26,6 +26,13 @@ void AItemRpgHUD::BeginPlay()
 		InteractionWidget->AddToViewport(-1);
 		InteractionWidget->SetVisibility(ESlateVisibility::Collapsed);
 	}
+
+	if(CrosshairWidgetClass)
+	{
+		CrosshairWidget = CreateWidget<UUserWidget>(GetWorld(), CrosshairWidgetClass);
+		CrosshairWidget->AddToViewport();
+		CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
 }
 
 void AItemRpgHUD::DisplayMenu()
@@ -44,6 +51,38 @@ void AItemRpgHUD::HideMenu()
 		bIsMenuVisible = false;
 		MainMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
 	}
+}
+
+void AItemRpgHUD::ToggleMenu()
+{
+	if(bIsMenuVisible)
+	{
+		HideMenu();
+
+		const FInputModeGameOnly InputMode;
+		GetOwningPlayerController()->SetInputMode(InputMode);
+		GetOwningPlayerController()->SetShowMouseCursor(false);
+	}
+	else
+	{
+		DisplayMenu();
+
+		const FInputModeGameAndUI InputMode;
+		GetOwningPlayerController()->SetInputMode(InputMode);
+		GetOwningPlayerController()->SetShowMouseCursor(true);
+	}
+}
+
+void AItemRpgHUD::ShowCrosshair()
+{
+	if(CrosshairWidget)
+		CrosshairWidget->SetVisibility(ESlateVisibility::Visible);
+}
+
+void AItemRpgHUD::HideCrosshair()
+{
+	if(CrosshairWidget)
+		CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void AItemRpgHUD::ShowInteractionWidget() const

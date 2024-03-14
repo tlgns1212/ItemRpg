@@ -64,7 +64,7 @@ protected:
 	virtual void Interact(AItemRpgCharacter* PlayerCharacter) override;
 	void UpdateInteractableData();
 	
-	void TakePickup(const AItemRpgCharacter* Taker) const;
+	void TakePickup(const AItemRpgCharacter* Taker);
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

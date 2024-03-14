@@ -4,6 +4,7 @@
 #include "Player/ItemRpgCharacter.h"
 #include "UserInterface/ItemRpgHUD.h"
 #include "Components/InventoryComponent.h"
+#include "World/Pickup.h"
 
 // Engine
 #include "Engine/LocalPlayer.h"
@@ -17,6 +18,7 @@
 #include "InputActionValue.h"
 
 #include "DrawDebugHelpers.h"
+#include "Components/TimelineComponent.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -50,22 +52,29 @@ AItemRpgCharacter::AItemRpgCharacter()
 	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
+	CameraBoom->TargetArmLength = 300.0f; // The camera follows at this distance behind the character	
 	CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
-
+	
 	// Create a follow camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+	AimingCameraTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("AimingCameraTimeline"));
+	DefaultCameraLocation = FVector{0.0f,0.0f,65.0f};
+	AimingCameraLocation = FVector{175.0f,50.0f,55.0f};
+	CameraBoom->SocketOffset = DefaultCameraLocation;
+	
 	PlayerInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("PlayerInventory"));
 	PlayerInventory->SetSlotsCapacity(20);
 	PlayerInventory->SetWeightCapacity(50.0f);
 	
 	InteractionCheckFrequency = 0.1f;
-	InteractionCheckDistance = 225.0f;
+	InteractionCheckDistance = 200.0f;
 
-	BaseEyeHeight = 74.0f;
+	// capsule default dimensions = 34.0f, 88.0f
+	GetCapsuleComponent()->InitCapsuleSize(42.0f,96.0f);
+	BaseEyeHeight = 76.0f;
 }
 
 void AItemRpgCharacter::BeginPlay()
@@ -83,6 +92,17 @@ void AItemRpgCharacter::BeginPlay()
 	}
 
 	HUD = Cast<AItemRpgHUD>(GetWorld()->GetFirstPlayerController()->GetHUD());
+
+	FOnTimelineFloat AimLerpAlphaValue;
+	FOnTimelineEvent TimelineFinishEvent;
+	AimLerpAlphaValue.BindUFunction(this, FName("UpdateCameraTimeline"));
+	TimelineFinishEvent.BindUFunction(this, FName("CameraTimelineEnd"));
+
+	if(AimingCameraTimeline && AimingCameraCurve)
+	{
+		AimingCameraTimeline->AddInterpFloat(AimingCameraCurve, AimLerpAlphaValue);
+		AimingCameraTimeline->SetTimelineFinishedFunc(TimelineFinishEvent);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -106,6 +126,13 @@ void AItemRpgCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		// Interact
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AItemRpgCharacter::BeginInteract);
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Completed, this, &AItemRpgCharacter::EndInteract);
+
+		// Aiming
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &AItemRpgCharacter::StartAiming);
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &AItemRpgCharacter::StopAiming);
+
+		// ToggleInventoryMenu
+		EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Started, this, &AItemRpgCharacter::ToggleMenu);
 	}
 	else
 	{
@@ -127,9 +154,20 @@ void AItemRpgCharacter::PerformInteractionCheck()
 {
 	InteractionData.LastInteractionCheckTime = GetWorld()->GetTimeSeconds();
 
-	FVector TraceStart{GetPawnViewLocation()};
-	FVector TraceEnd{TraceStart + (GetViewRotation().Vector() * InteractionCheckDistance)};
+	FVector TraceStart{FVector::ZeroVector};
 
+	if(!bAiming)
+	{
+		InteractionCheckDistance = 200.0f;
+		TraceStart = GetPawnViewLocation();
+	}
+	else
+	{
+		InteractionCheckDistance = 250.0f;
+		TraceStart = FollowCamera->GetComponentLocation();
+	}
+	
+	FVector TraceEnd{TraceStart + (GetViewRotation().Vector() * InteractionCheckDistance)};
 	// 내가 바라보는 방향에 있는지
 	float LookDirection = FVector::DotProduct(GetActorForwardVector(), GetViewRotation().Vector());
 
@@ -248,6 +286,92 @@ void AItemRpgCharacter::Interact()
 	if(IsValid(TargetInteractable.GetObject()))
 	{
 		TargetInteractable->Interact(this);
+	}
+}
+
+void AItemRpgCharacter::UpdateInteractionWidget() const
+{
+	if(IsValid(TargetInteractable.GetObject()))
+	{
+		HUD->UpdateInteractionWidget(&TargetInteractable->InteractableData);
+	}
+}
+
+void AItemRpgCharacter::ToggleMenu()
+{
+	HUD->ToggleMenu();
+
+	if(HUD->bIsMenuVisible)
+	{
+		StopAiming();
+	}
+}
+
+void AItemRpgCharacter::StartAiming()
+{
+	if(!HUD->bIsMenuVisible)
+	{
+		bAiming = true;
+		// bUseControllerRotationYaw = true;
+		GetCharacterMovement()->MaxWalkSpeed = 200.0f;
+
+		if(AimingCameraTimeline)
+			AimingCameraTimeline->PlayFromStart();
+	}
+}
+
+void AItemRpgCharacter::StopAiming()
+{
+	if(bAiming)
+	{
+		bAiming = false;
+		// bUseControllerRotationYaw = false;
+		HUD->HideCrosshair();
+		GetCharacterMovement()->MaxWalkSpeed = 500.0f;
+		
+		if(AimingCameraTimeline)
+			AimingCameraTimeline->Reverse();
+	}
+}
+
+void AItemRpgCharacter::UpdateCameraTimeline(const float TimelineValue) const
+{
+	const FVector CameraLocation = FMath::Lerp(DefaultCameraLocation, AimingCameraLocation, TimelineValue);
+	CameraBoom->SocketOffset = CameraLocation;
+}
+
+void AItemRpgCharacter::CameraTimelineEnd()
+{
+	if(AimingCameraTimeline)
+	{
+		if(AimingCameraTimeline->GetPlaybackPosition() != 0.0f)
+		{
+			HUD->ShowCrosshair();
+		}
+	}
+}
+
+void AItemRpgCharacter::DropItem(UItemBase* ItemToDrop, const int32 QuantityToDrop)
+{
+	if(PlayerInventory->FindMatchingItem(ItemToDrop))
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = this;
+		SpawnParams.bNoFail = true;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+		const FVector SpawnLocation{GetActorLocation() + (GetActorForwardVector() * 50.0f)};
+		const FTransform SpawnTransform{GetActorRotation(), SpawnLocation};
+
+		const int32 RemovedQuantity = PlayerInventory->RemoveAmountOfItem(ItemToDrop, QuantityToDrop);
+
+		APickup* Pickup = GetWorld()->SpawnActor<APickup>(APickup::StaticClass(), SpawnTransform, SpawnParams);
+
+		Pickup->InitializeDrop(ItemToDrop, RemovedQuantity);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Item to drop was somehow null!"));
 	}
 }
 
